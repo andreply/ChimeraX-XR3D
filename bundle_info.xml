@@ -1,0 +1,28 @@
+<BundleInfo name="ChimeraX-XR3D"
+    version="0.6" package="chimerax.xr3d"
+    customInit="true"
+    minSessionVersion="1" maxSessionVersion="1">
+
+  <Author>andreply</Author>
+  <Email>labyrinth_visa_7i@icloud.com</Email>
+  <URL>https://github.com/andreply/ChimeraX-XR3D</URL>
+
+  <Synopsis>3D cursor, selection, and hover labels for all OpenXR autostereo displays</Synopsis>
+  <Description>
+Adds 3D cursor, selection rectangle, and hover labels for OpenXR autostereo displays
+(Sony Spatial Reality, Acer SpatialLabs, Samsung Odyssey 3D). Use "xr3d cursor" command to configure.
+  </Description>
+
+  <Categories>
+    <Category name="VR"/>
+  </Categories>
+
+  <Dependencies>
+    <Dependency name="ChimeraX-Core" version="~=1.1"/>
+  </Dependencies>
+
+  <Classifiers>
+    <PythonClassifier>Development Status :: 3 - Alpha</PythonClassifier>
+  </Classifiers>
+
+</BundleInfo>
