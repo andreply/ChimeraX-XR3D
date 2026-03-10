@@ -6,13 +6,9 @@ from chimerax.core.toolshed import BundleAPI
 class _XR3DInteractionAPI(BundleAPI):
     """Bundle API for 3D cursor, selection, and hover on XR displays.
 
-    On initialize(), monkey-patches _enable_xr_mouse_modes in
-    xr_screens to create our enhanced backing window with 3D cursor,
-    selection rectangle, and hover labels on ALL XR displays
-    (Sony, Acer, Samsung).
-
-    When the upstream registration hook API lands, this will switch
-    to the clean registration call instead.
+    Uses the public enable_xr_mouse_modes hook in xr_screens (ChimeraX
+    >= 1.12.dev202603101234) when available.  Falls back to monkey-
+    patching _enable_xr_mouse_modes for ChimeraX 1.11.
     """
     api_version = 1
 
@@ -40,11 +36,13 @@ _active_window = None
 # ---------------------------------------------------------------------------
 
 def _register_commands(session):
-    from chimerax.core.commands import (register, CmdDesc, StringArg,
+    from chimerax.core.commands import (register, CmdDesc, EnumOf,
                                         FloatArg, ColorArg)
+    from .cursor3d import CURSOR_STYLES
 
+    style_arg = EnumOf((*CURSOR_STYLES, 'default'))
     cursor_desc = CmdDesc(
-        optional=[('style', StringArg)],
+        optional=[('style', style_arg)],
         keyword=[('size', FloatArg),
                  ('color', ColorArg)],
         synopsis='Set 3D cursor style, size, or color')
@@ -59,7 +57,6 @@ def _register_commands(session):
 
 
 def _cmd_cursor(session, style=None, size=None, color=None):
-    from .cursor3d import CURSOR_STYLES
     if _active_window is None:
         session.logger.warning('No active XR3D session')
         return
@@ -67,11 +64,6 @@ def _cmd_cursor(session, style=None, size=None, color=None):
         if style == 'default':
             _active_window.reset_cursor_defaults()
             session.logger.info('3D cursor reset to defaults')
-            return
-        if style not in CURSOR_STYLES:
-            session.logger.warning(
-                f'Unknown style "{style}". '
-                f'Options: {", ".join(CURSOR_STYLES)}, default')
             return
         _active_window.set_cursor_style(style)
         session.logger.info(f'3D cursor style: {style}')
@@ -99,10 +91,11 @@ def _cmd_off(session):
 
 
 # ---------------------------------------------------------------------------
-# Monkey-patching infrastructure
+# Hook infrastructure
 # ---------------------------------------------------------------------------
 
 _original_enable_xr_mouse_modes = None
+_hook_method = None  # 'public' or 'monkey-patch'
 
 
 def _get_xr_screens():
@@ -122,9 +115,12 @@ def _get_xr_screens():
 
 
 def _install_hook(session):
-    """Patch _enable_xr_mouse_modes to use our enhanced backing window
-    with 3D cursor on ALL XR displays (Sony, Acer, Samsung)."""
-    global _original_enable_xr_mouse_modes
+    """Install our enhanced enable_xr_mouse_modes.
+
+    Prefers the public enable_xr_mouse_modes hook (>= 1.12.dev202603101234).
+    Falls back to monkey-patching _enable_xr_mouse_modes for ChimeraX 1.11.
+    """
+    global _original_enable_xr_mouse_modes, _hook_method
     if _original_enable_xr_mouse_modes is not None:
         return  # already installed
     xr_screens = _get_xr_screens()
@@ -133,29 +129,39 @@ def _install_hook(session):
             'ChimeraX-XR3D: xr_screens module not found.')
         return
 
-    # Save the original
-    _original_enable_xr_mouse_modes = xr_screens._enable_xr_mouse_modes
-
     # Add Samsung models if not already present
     for model in ('Odyssey G90XF', 'Odyssey G90XH'):
         if model not in xr_screens.xr_screen_model_names:
             xr_screens.xr_screen_model_names.append(model)
 
-    # Replace with our enhanced version
-    xr_screens._enable_xr_mouse_modes = _enhanced_enable_xr_mouse_modes
-
-    session.logger.info(
-        'ChimeraX-XR3D: 3D cursor enabled for all XR displays')
+    # Try public hook first (>= 1.12.dev202603101234)
+    if hasattr(xr_screens, 'enable_xr_mouse_modes'):
+        _original_enable_xr_mouse_modes = xr_screens.enable_xr_mouse_modes
+        xr_screens.enable_xr_mouse_modes = _enhanced_enable_xr_mouse_modes
+        _hook_method = 'public'
+        session.logger.info(
+            'ChimeraX-XR3D: using enable_xr_mouse_modes hook')
+    else:
+        # Fallback: monkey-patch private method (ChimeraX 1.11)
+        _original_enable_xr_mouse_modes = xr_screens._enable_xr_mouse_modes
+        xr_screens._enable_xr_mouse_modes = _enhanced_enable_xr_mouse_modes
+        _hook_method = 'monkey-patch'
+        session.logger.info(
+            'ChimeraX-XR3D: patching _enable_xr_mouse_modes (1.11 compat)')
 
 
 def _remove_hook():
-    """Restore original _enable_xr_mouse_modes."""
-    global _original_enable_xr_mouse_modes
+    """Restore original enable_xr_mouse_modes."""
+    global _original_enable_xr_mouse_modes, _hook_method
     if _original_enable_xr_mouse_modes is not None:
         xr_screens = _get_xr_screens()
         if xr_screens is not None:
-            xr_screens._enable_xr_mouse_modes = _original_enable_xr_mouse_modes
+            if _hook_method == 'public':
+                xr_screens.enable_xr_mouse_modes = _original_enable_xr_mouse_modes
+            else:
+                xr_screens._enable_xr_mouse_modes = _original_enable_xr_mouse_modes
         _original_enable_xr_mouse_modes = None
+        _hook_method = None
 
 
 def _enhanced_enable_xr_mouse_modes(session, screen_model_name=None,

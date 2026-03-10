@@ -244,8 +244,6 @@ class Cursor3D:
         m.display = False
         self._apply_style(style)
         session.models.add([m])
-        # Enable key light shadows so cursor casts shadow on molecules
-        self._prev_shadows = self._enable_shadows(session)
 
     @property
     def style(self):
@@ -450,38 +448,6 @@ class Cursor3D:
     def deleted(self):
         return self._model is None or self._model.deleted
 
-    @staticmethod
-    def _enable_shadows(session):
-        """Enable key light shadows and transparent shadow casting.
-        Returns previous states so they can be restored."""
-        prev = {'shadows': False, 'transparent': False}
-        try:
-            lp = session.main_view.lighting
-            prev['shadows'] = lp.shadows
-            if not lp.shadows:
-                lp.shadows = True
-            # Cursor is semi-transparent; without this it won't cast shadows
-            mat = session.main_view.render.material
-            prev['transparent'] = mat.transparent_cast_shadows
-            if not mat.transparent_cast_shadows:
-                mat.transparent_cast_shadows = True
-            session.main_view.redraw_needed = True
-        except Exception:
-            pass
-        return prev
-
-    def _restore_shadows(self):
-        """Restore shadow state to what it was before cursor was created."""
-        try:
-            prev = self._prev_shadows
-            if not prev.get('shadows', False):
-                self._session.main_view.lighting.shadows = False
-            if not prev.get('transparent', False):
-                self._session.main_view.render.material.transparent_cast_shadows = False
-            self._session.main_view.redraw_needed = True
-        except Exception:
-            pass
-
     def hide(self):
         if self._model is not None:
             self._model.display = False
@@ -491,7 +457,6 @@ class Cursor3D:
             self._model.display = False
             self._session.models.remove([self._model])
             self._model = None
-            self._restore_shadows()
 
 
 class SelectionRect3D:
