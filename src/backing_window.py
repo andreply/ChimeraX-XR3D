@@ -87,6 +87,8 @@ class XR3DBackingWindow:
         self._hover_time = 0
         self._hover_active = False
         self._hover_label_object = (None, None)
+        self._hover_shown_atoms = []
+        self._hover_popup = self._create_hover_popup(w)
 
         # 3D cursor: hide OS cursor, render 3D shape at scene depth
         from Qt.QtCore import Qt
@@ -361,24 +363,29 @@ class XR3DBackingWindow:
             if pick is None:
                 self._hide_hover_label()
             else:
-                self._show_hover_label(pick, obj, label_type)
+                self._show_hover_label(pick, obj, label_type, x, y)
 
-    def _show_hover_label(self, pick, obj, label_type):
-        text = pick.description()
-        from chimerax.label.label3d import label
-        label(self._session, obj, label_type,
-              text=text, bg_color=(0, 0, 0, 255))
-        self._hover_label_object = obj, label_type
-
-    def _hide_hover_label(self):
-        obj, label_type = self._hover_label_object
-        if obj is not None:
-            from chimerax.label.label3d import label_delete
-            label_delete(self._session, obj, label_type)
-            self._hover_label_object = (None, None)
+    def _create_hover_popup(self, parent):
+        """Create a 2D text popup for hover labels, like the normal GUI."""
+        from Qt.QtWidgets import QLabel
+        from Qt.QtCore import Qt
+        popup = QLabel(parent)
+        popup.setStyleSheet(
+            'QLabel {'
+            '  background: rgba(0, 0, 0, 200);'
+            '  color: white;'
+            '  padding: 4px 8px;'
+            '  border-radius: 4px;'
+            '  font-size: 14px;'
+            '}')
+        popup.setAttribute(Qt.WA_TransparentForMouseEvents)
+        popup.hide()
+        return popup
 
     def _hover_pick(self, x, y):
         pick = self._session.main_view.picked_object(x, y)
+        if pick is None:
+            return None, None, None
         from chimerax.atomic import PickedAtom, PickedResidue, PickedBond
         from chimerax.core.objects import Objects
         if isinstance(pick, PickedAtom):
@@ -393,8 +400,77 @@ class XR3DBackingWindow:
             obj = Objects(bonds=Bonds([pick.bond]))
             label_type = 'bonds'
         else:
-            return None, None, None
+            # Surfaces, maps, etc. — find nearest atom for 3D label
+            atom = self._nearest_atom(pick)
+            if atom is not None:
+                from chimerax.atomic import Atoms
+                obj = Objects(atoms=Atoms([atom]))
+                label_type = 'atoms'
+            else:
+                obj = None
+                label_type = None
         return pick, obj, label_type
+
+    def _nearest_atom(self, pick):
+        """Find the closest atom to a pick's 3D position."""
+        pos = getattr(pick, 'position', None)
+        if pos is None:
+            return None
+        from chimerax.atomic import all_atoms
+        atoms = all_atoms(self._session)
+        if len(atoms) == 0:
+            return None
+        from numpy.linalg import norm
+        dists = norm(atoms.scene_coords - pos, axis=1)
+        return atoms[dists.argmin()]
+
+    def _show_hover_label(self, pick, obj, label_type, x, y):
+        text = pick.description()
+        if obj is not None:
+            # Temporarily show hidden atoms so label3d renders the label.
+            self._hover_shown_atoms = []
+            if label_type == 'atoms' and hasattr(obj, 'atoms'):
+                for a in obj.atoms:
+                    if not a.display:
+                        a.display = True
+                        self._hover_shown_atoms.append(a)
+            from chimerax.label.label3d import label
+            label(self._session, obj, label_type,
+                  text=text, bg_color=(0, 0, 0, 255))
+            self._hover_label_object = obj, label_type
+        else:
+            # No atom available — fall back to 2D popup
+            self._hover_popup.setText(text)
+            self._hover_popup.adjustSize()
+            px = int(x * self._widget.width()
+                     / self._session.main_view.window_size[0]) + 16
+            py = int(y * self._widget.height()
+                     / self._session.main_view.window_size[1]) - 10
+            pw, ph = self._hover_popup.width(), self._hover_popup.height()
+            ww, wh = self._widget.width(), self._widget.height()
+            if px + pw > ww:
+                px = max(0, px - pw - 32)
+            if py < 0:
+                py = 0
+            elif py + ph > wh:
+                py = wh - ph
+            self._hover_popup.move(px, py)
+            self._hover_popup.show()
+        self._session.logger.status(text)
+
+    def _hide_hover_label(self):
+        # Hide 3D label
+        obj, label_type = self._hover_label_object
+        if obj is not None:
+            from chimerax.label.label3d import label_delete
+            label_delete(self._session, obj, label_type)
+            for a in self._hover_shown_atoms:
+                a.display = False
+            self._hover_shown_atoms = []
+        self._hover_label_object = (None, None)
+        # Hide 2D popup
+        if self._hover_popup is not None:
+            self._hover_popup.hide()
 
     # -------------------------------------------------------------------
     # Cleanup

@@ -219,8 +219,8 @@ def pointer_view_rotation(R):
 _DEFAULT_STYLE = 'sphere'
 _DEFAULT_RADIUS = 0.4
 # Default gradient: bright warm yellow center → deep orange edge
-_DEFAULT_CENTER = np.array([255, 230, 100, 210], dtype=np.float32)
-_DEFAULT_EDGE = np.array([210, 80, 0, 180], dtype=np.float32)
+_DEFAULT_CENTER = np.array([255, 230, 100, 255], dtype=np.float32)
+_DEFAULT_EDGE = np.array([210, 80, 0, 255], dtype=np.float32)
 
 
 class Cursor3D:
@@ -239,7 +239,7 @@ class Cursor3D:
         self._last_pick_pos = None
         from chimerax.core.models import Surface
         self._model = m = Surface('3D Cursor', session)
-        m.color = (255, 150, 0, 180)
+        m.color = (255, 150, 0, 255)
         m.pickable = False
         m.casts_shadows = False
         m.display = False
@@ -277,6 +277,9 @@ class Cursor3D:
         """Toggle cursor shadow casting (off by default for performance)."""
         if self._model is not None:
             self._model.casts_shadows = enabled
+            # casts_shadows is not in Drawing._effects_shader, so changing
+            # it does not trigger a shadow map rebuild.  Force one.
+            self._model.redraw_needed(shape_changed=True)
 
     def reset_defaults(self):
         """Reset style, size, and color to defaults."""
@@ -332,28 +335,28 @@ class Cursor3D:
         Light colors get darker edges; dark colors get lighter edges.
         Very dark colors (like black) get strong bright edges so the
         shape reads as that color with visible 3D shading.
-        Alpha is preserved from the default (210 center, 180 edge)."""
+        Alpha is 255 (opaque) so the cursor is included in shadow maps."""
         r, g, b, _a = int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3])
         # Perceived luminance (ITU-R BT.601)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
         if lum > 128:
             # Light color: darken edges
-            center = np.array([r, g, b, 210], dtype=np.float32)
+            center = np.array([r, g, b, 255], dtype=np.float32)
             edge = np.array([
-                max(0, r - 80), max(0, g - 80), max(0, b - 80), 180
+                max(0, r - 80), max(0, g - 80), max(0, b - 80), 255
             ], dtype=np.float32)
         elif lum > 40:
             # Medium-dark: moderate lighten on edges
-            center = np.array([r, g, b, 210], dtype=np.float32)
+            center = np.array([r, g, b, 255], dtype=np.float32)
             edge = np.array([
-                min(255, r + 110), min(255, g + 110), min(255, b + 110), 180
+                min(255, r + 110), min(255, g + 110), min(255, b + 110), 255
             ], dtype=np.float32)
         else:
             # Very dark (near-black): strong bright edges for contrast,
             # center stays dark so it reads as the chosen color
-            center = np.array([r, g, b, 210], dtype=np.float32)
+            center = np.array([r, g, b, 255], dtype=np.float32)
             edge = np.array([
-                min(255, r + 180), min(255, g + 180), min(255, b + 180), 180
+                min(255, r + 180), min(255, g + 180), min(255, b + 180), 255
             ], dtype=np.float32)
         return Cursor3D._compute_gradient(va, center, edge, style)
 

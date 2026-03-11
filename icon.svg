@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#1a1a2e" stroke="#16213e" stroke-width="3"/>
+
+  <!-- 3D crosshair lines -->
+  <!-- Horizontal -->
+  <line x1="20" y1="64" x2="108" y2="64" stroke="#4a90d9" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <!-- Vertical -->
+  <line x1="64" y1="20" x2="64" y2="108" stroke="#4a90d9" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <!-- Depth line (diagonal, suggesting Z-axis) -->
+  <line x1="38" y1="90" x2="90" y2="38" stroke="#4a90d9" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- Center sphere (3D cursor) with gradient for depth -->
+  <defs>
+    <radialGradient id="sphere" cx="40%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="60%" stop-color="#ff9633"/>
+      <stop offset="100%" stop-color="#cc6600"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="14" fill="url(#sphere)" opacity="0.9"/>
+
+  <!-- Highlight on sphere -->
+  <circle cx="59" cy="59" r="4" fill="white" opacity="0.4"/>
+
+  <!-- "3D" text -->
+  <text x="64" y="118" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="18" fill="#4a90d9" opacity="0.8">XR3D</text>
+</svg>
