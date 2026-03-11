@@ -41,7 +41,7 @@ def enable_xr3d_mouse_modes(session, screen_model_name=None,
     XR3DBackingWindow(session, screen,
                       in_front=openxr_window_captures_events,
                       direct_pick=direct_pick)
-    session.logger.info(
+    session.logger.status(
         f'ChimeraX-XR3D: 3D cursor enabled on "{screen.model()}"')
     return True
 
@@ -164,6 +164,10 @@ class XR3DBackingWindow:
     def set_cursor_color(self, color):
         if self._cursor is not None:
             self._cursor.set_color(color)
+
+    def set_cursor_shadows(self, enabled):
+        if self._cursor is not None:
+            self._cursor.set_shadows(enabled)
 
     def reset_cursor_defaults(self):
         if self._cursor is not None:

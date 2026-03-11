@@ -37,14 +37,15 @@ _active_window = None
 
 def _register_commands(session):
     from chimerax.core.commands import (register, CmdDesc, EnumOf,
-                                        FloatArg, ColorArg)
+                                        FloatArg, ColorArg, BoolArg)
     from .cursor3d import CURSOR_STYLES
 
     style_arg = EnumOf((*CURSOR_STYLES, 'default'))
     cursor_desc = CmdDesc(
         optional=[('style', style_arg)],
         keyword=[('size', FloatArg),
-                 ('color', ColorArg)],
+                 ('color', ColorArg),
+                 ('shadows', BoolArg)],
         synopsis='Set 3D cursor style, size, or color')
     register('xr3d cursor', cursor_desc, _cmd_cursor,
              logger=session.logger)
@@ -56,7 +57,7 @@ def _register_commands(session):
     register('xr3d off', off_desc, _cmd_off, logger=session.logger)
 
 
-def _cmd_cursor(session, style=None, size=None, color=None):
+def _cmd_cursor(session, style=None, size=None, color=None, shadows=None):
     if _active_window is None:
         session.logger.warning('No active XR3D session')
         return
@@ -73,6 +74,10 @@ def _cmd_cursor(session, style=None, size=None, color=None):
     if color is not None:
         _active_window.set_cursor_color(color)
         session.logger.info(f'3D cursor color: {color}')
+    if shadows is not None:
+        _active_window.set_cursor_shadows(shadows)
+        session.logger.info(
+            f'3D cursor shadows: {"on" if shadows else "off"}')
 
 
 def _cmd_on(session):
@@ -139,15 +144,11 @@ def _install_hook(session):
         _original_enable_xr_mouse_modes = xr_screens.enable_xr_mouse_modes
         xr_screens.enable_xr_mouse_modes = _enhanced_enable_xr_mouse_modes
         _hook_method = 'public'
-        session.logger.info(
-            'ChimeraX-XR3D: using enable_xr_mouse_modes hook')
     else:
         # Fallback: monkey-patch private method (ChimeraX 1.11)
         _original_enable_xr_mouse_modes = xr_screens._enable_xr_mouse_modes
         xr_screens._enable_xr_mouse_modes = _enhanced_enable_xr_mouse_modes
         _hook_method = 'monkey-patch'
-        session.logger.info(
-            'ChimeraX-XR3D: patching _enable_xr_mouse_modes (1.11 compat)')
 
 
 def _remove_hook():
@@ -258,9 +259,8 @@ def _fit_vrto3d_view(session):
         cam._initial_room_center = model_center
         cam._initial_room_scene_size = room_width
 
-        session.logger.info(
-            f'ChimeraX-XR3D: vrto3d view fitted, '
-            f'head={tuple(round(float(x), 2) for x in head)}')
+        session.logger.status(
+            f'ChimeraX-XR3D: vrto3d view fitted')
         return 'delete handler'
 
     session.triggers.add_handler('new frame', _on_first_frame)

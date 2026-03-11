@@ -241,6 +241,7 @@ class Cursor3D:
         self._model = m = Surface('3D Cursor', session)
         m.color = (255, 150, 0, 180)
         m.pickable = False
+        m.casts_shadows = False
         m.display = False
         self._apply_style(style)
         session.models.add([m])
@@ -272,11 +273,18 @@ class Cursor3D:
         self._base_vc = self._make_gradient(self._base_va)
         self._model.vertex_colors = self._base_vc
 
+    def set_shadows(self, enabled):
+        """Toggle cursor shadow casting (off by default for performance)."""
+        if self._model is not None:
+            self._model.casts_shadows = enabled
+
     def reset_defaults(self):
         """Reset style, size, and color to defaults."""
         self._radius = _DEFAULT_RADIUS
         self._style = _DEFAULT_STYLE
         self._custom_color = None
+        if self._model is not None:
+            self._model.casts_shadows = False
         self._apply_style(self._style)
 
     def _apply_style(self, style):

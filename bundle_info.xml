@@ -1,5 +1,5 @@
 <BundleInfo name="ChimeraX-XR3D"
-    version="0.7" package="chimerax.xr3d"
+    version="0.8" package="chimerax.xr3d"
     customInit="true"
     minSessionVersion="1" maxSessionVersion="1">
 
