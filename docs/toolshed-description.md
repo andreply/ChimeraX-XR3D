@@ -1,20 +1,26 @@
-# Toolshed description — paste this into the bundle's Description field
+# Toolshed description — paste the part below the rule into the bundle's Details field
 
 The Toolshed description is a **separate, hand-maintained field** on
 <https://cxtoolshed.rbvi.ucsf.edu/apps/chimeraxxr3d>. It is *not* generated from
-`bundle_info.xml` (whose `<Description>` is only two lines) and *not* from this repo's README.
+`bundle_info.xml` (whose `<Description>` is only two lines) and *not* from this repo's README,
+so it drifts. It already did: the v0.9 page documented `xr3d cursor shadows true` while the
+README's command table omitted the keyword entirely.
 
-That means it drifts. It already did: the v0.9 page documented `xr3d cursor shadows true`
-while the README's command table omitted it entirely.
+**Keep this in sync with the README and paste it on every release.**
 
-**Keep this file in sync with the README, and paste it into the Toolshed form on every release.**
+⚠ **The Toolshed's markdown renderer does not support tables.** The v0.9 page displayed the
+Commands table as literal `|` pipes. Use lists, not tables.
+
+Editor account for this bundle: `labyrinth_visa_7i@icloud.com` (Google sign-in; the Toolshed ties
+edit rights to the account that made the original submission).
 
 ---
 
-Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatial Reality,
-Acer SpatialLabs, Samsung Odyssey 3D).
+## ChimeraX-XR3D
 
-## Features
+Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatial Reality, Acer SpatialLabs, Samsung Odyssey 3D).
+
+### Features
 
 - **3D cursor** at correct stereo depth (5 styles: sphere, crosshair, diamond, arrow, cone)
 - **Customizable** size, color with auto-contrast gradient
@@ -23,36 +29,42 @@ Acer SpatialLabs, Samsung Odyssey 3D).
 - **Hover labels** for atoms, residues, and bonds
 - **vrto3d view fitting** for Samsung Odyssey 3D
 
-## Commands
+### Commands
 
-| Command | Description |
-|---|---|
-| `xr3d cursor sphere` | Switch style (also: crosshair, diamond, arrow, cone) |
-| `xr3d cursor size 0.6` | Adjust cursor size |
-| `xr3d cursor color red` | Set custom color |
-| `xr3d shadows true` | Enable cursor shadow casting (off by default) |
-| `xr3d cursor shadows true` | Same, kept for compatibility |
-| `xr3d cursor default` | Reset all to defaults and forget saved values |
-| `xr3d on` / `xr3d off` | Enable/disable 3D cursor |
+- `xr3d on` / `xr3d off` — enable or disable the 3D cursor
+- `xr3d cursor sphere` — switch style (also: crosshair, diamond, arrow, cone)
+- `xr3d cursor size 0.6` — adjust cursor size
+- `xr3d cursor color red` — set a custom color
+- `xr3d shadows true` — enable cursor shadow casting (off by default)
+- `xr3d cursor default` — reset everything to defaults and forget saved values
 
-Command words, keywords and booleans truncate once unambiguous, so `xr3d sh on` works.
+Commands, keywords and booleans can be truncated once unambiguous, so `xr3d sh on` works.
 
-## Your cursor is remembered
+`xr3d cursor shadows true` is still accepted, for compatibility with existing scripts.
 
-Since v0.10, style, size, color and shadows are saved per user. Set the cursor you like once
-and every later `xr on` restores it. `xr3d cursor default` resets to the shipped defaults and
-clears the saved values.
+### Your cursor is remembered
 
-Shadows ship **off**: shadow casting forces a shadow-map rebuild as the cursor moves, which is
-noticeable on slower GPUs. It is a default, not a limit — `xr3d shadows true` once and it stays.
-That command works with no XR session active, so it can go in a startup script.
+Since v0.10, style, size, color and shadows are **saved per user**. Set the cursor you like once and every later `xr on` restores it — no startup script needed.
 
-## Requirements
+```
+xr3d cursor cone size 0.6 color cornflowerblue
+xr3d shadows true
+```
+
+`xr3d cursor default` resets to the shipped defaults and clears the saved values.
+
+### Shadows
+
+The cursor can cast a shadow onto the molecule, which makes its depth much easier to read.
+
+It ships **off**, because shadow casting forces a shadow-map rebuild as the cursor moves and that is noticeable on slower GPUs. It is a default, not a limit — turn it on once and it stays on. `xr3d shadows` also works with no XR session active, so it can go in a startup script or be set before the display is connected.
+
+### Requirements
 
 - ChimeraX 1.11+ with OpenXR support
 - An autostereo 3D display (Sony, Acer, or Samsung)
-- For Samsung: vrto3d + SteamVR
+- For Samsung: [vrto3d](https://github.com/oneup03/VRto3D) + SteamVR
 
-## Links
+### Links
 
 - GitHub: https://github.com/andreply/ChimeraX-XR3D
