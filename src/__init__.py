@@ -56,28 +56,69 @@ def _register_commands(session):
     off_desc = CmdDesc(synopsis='Disable 3D cursor on XR display')
     register('xr3d off', off_desc, _cmd_off, logger=session.logger)
 
+    # Shadows is a saved mode, not a property of the current cursor object, so
+    # it reads better next to `xr3d on`/`off` than buried under `xr3d cursor`.
+    # `xr3d cursor shadows` stays registered: it is what the Toolshed page
+    # documents and what existing user scripts call.
+    shadows_desc = CmdDesc(
+        required=[('enabled', BoolArg)],
+        synopsis='Enable or disable 3D cursor shadow casting (saved)')
+    register('xr3d shadows', shadows_desc, _cmd_shadows,
+             logger=session.logger)
+
+
+def _cmd_shadows(session, enabled):
+    """`xr3d shadows true|false` -- the primary spelling."""
+    _set_shadows(session, enabled)
+
+
+def _set_shadows(session, enabled):
+    """Save the shadow preference and apply it to a live cursor if there is one.
+
+    Works with no XR session running, so it can be set from a startup script or
+    before the display is even connected.
+    """
+    from .settings import get_settings
+    get_settings(session).cursor_shadows = enabled  # AUTO_SAVE -> on disk
+    if _active_window is not None:
+        _active_window.set_cursor_shadows(enabled)
+    session.logger.info(
+        f'3D cursor shadows: {"on" if enabled else "off"} (saved)')
+
 
 def _cmd_cursor(session, style=None, size=None, color=None, shadows=None):
+    # Handled first: unlike the others it is meaningful with no active window.
+    if shadows is not None:
+        _set_shadows(session, shadows)
+        if style is None and size is None and color is None:
+            return
+
     if _active_window is None:
         session.logger.warning('No active XR3D session')
         return
+
+    from .settings import get_settings
+    st = get_settings(session)
+
     if style is not None:
         if style == 'default':
+            # Also clears the saved preferences -- see Cursor3D.reset_defaults.
             _active_window.reset_cursor_defaults()
-            session.logger.info('3D cursor reset to defaults')
+            session.logger.info('3D cursor reset to defaults (saved)')
             return
         _active_window.set_cursor_style(style)
-        session.logger.info(f'3D cursor style: {style}')
+        st.cursor_style = style
+        session.logger.info(f'3D cursor style: {style} (saved)')
     if size is not None:
         _active_window.set_cursor_size(size)
-        session.logger.info(f'3D cursor size: {size}')
+        st.cursor_size = size
+        session.logger.info(f'3D cursor size: {size} (saved)')
     if color is not None:
         _active_window.set_cursor_color(color)
-        session.logger.info(f'3D cursor color: {color}')
-    if shadows is not None:
-        _active_window.set_cursor_shadows(shadows)
-        session.logger.info(
-            f'3D cursor shadows: {"on" if shadows else "off"}')
+        # Stored as a plain list; Settings persists via repr() and a ChimeraX
+        # Color would need a custom Value() converter to round-trip.
+        st.cursor_color = [int(c) for c in color.uint8x4()]
+        session.logger.info(f'3D cursor color: {color} (saved)')
 
 
 def _cmd_on(session):

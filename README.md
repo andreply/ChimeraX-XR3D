@@ -45,20 +45,55 @@ devel install /path/to/ChimeraX-XR3D
 | `xr3d cursor default` | Reset style, size, and color to defaults |
 | `xr3d cursor size 0.6` | Change cursor size (default 0.4) |
 | `xr3d cursor color red` | Change cursor color (any ChimeraX color) |
+| `xr3d shadows true` | Turn shadow casting on (off by default) |
+| `xr3d cursor shadows true` | Same thing — kept for compatibility |
 | `xr3d cursor cone size 0.8 color blue` | Combine style, size, and color |
 | `xr3d on` / `xr3d off` | Enable/disable 3D cursor |
 
+Command words, keywords and booleans can all be truncated once unambiguous, so
+`xr3d sh on` is the same as `xr3d shadows true`.
+
+### Your cursor is remembered
+
+**Style, size, colour and shadows are all saved per user.** Set the cursor you like once
+and every later `xr on` brings it back — before v0.10 they lived only on the current cursor
+object, so each session started from the shipped defaults again.
+
+```
+xr3d cursor cone size 0.6 color cornflowerblue
+xr3d shadows true
+```
+
+Storage is ChimeraX's own `Settings` (`AUTO_SAVE`), written the moment you change something —
+there is no save step. To go back to the shipped defaults **and forget the saved values**:
+
+```
+xr3d cursor default
+```
+
+### Shadows
+
+The cursor can cast a shadow onto the molecule, which makes its depth much easier to read.
+It ships **off**, because shadow casting forces a shadow-map rebuild as the cursor moves and
+that is noticeable on slower GPUs — the cost is real, so it is opt-in. It is a default, not a
+limit: turn it on once and it stays on.
+
+`xr3d shadows` works with **no XR session active**, so it can go in a startup script or be set
+before the display is even connected.
+
 ## Architecture
 
-ChimeraX Toolshed plugin that monkey-patches `_enable_xr_mouse_modes` in
-`xr_screens` to use an enhanced backing window with 3D interaction features
-on all XR displays.
+ChimeraX Toolshed plugin that swaps `xr_screens`' backing window for one with 3D
+interaction features, on all XR displays. It prefers the **public**
+`enable_xr_mouse_modes` hook (ChimeraX ≥ 1.12.dev202603101234) and only falls back to
+monkey-patching the private `_enable_xr_mouse_modes` on 1.11.
 
 ```
 src/
-  __init__.py         # Bundle API — patches _enable_xr_mouse_modes on load
+  __init__.py         # Bundle API, commands, hook install/remove
   cursor3d.py         # Cursor3D, SelectionRect3D, geometry generators
   backing_window.py   # XR3DBackingWindow (mouse, hover, coordination)
+  settings.py         # saved preferences + the shipped defaults
 ```
 
 If ChimeraX ever gains a registration hook API upstream, the monkey-patching

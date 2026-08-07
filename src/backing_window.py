@@ -10,9 +10,10 @@ It extends the upstream XRBackingWindow with:
 - 3D selection rectangle for ctrl+drag region selection
 - 3D hover labels for atoms, residues, and bonds
 
-The enable_xr3d_mouse_modes() entry point is called by the monkey-patched
-_enable_xr_mouse_modes in __init__.py, which is invoked by ALL display
-setup functions (Sony, Acer, Samsung).
+The enable_xr3d_mouse_modes() entry point is called from __init__.py via the
+public enable_xr_mouse_modes hook (ChimeraX >= 1.12.dev202603101234), falling
+back to monkey-patching the private _enable_xr_mouse_modes on 1.11.  Either way
+it is invoked by ALL display setup functions (Sony, Acer, Samsung).
 """
 
 import time
@@ -25,9 +26,10 @@ def enable_xr3d_mouse_modes(session, screen_model_name=None,
                              direct_pick=False):
     """Create an XR3DBackingWindow on the XR display.
 
-    Called from the monkey-patched _enable_xr_mouse_modes for all
-    display types. Parameters are passed through from the original
-    display setup function.
+    Called from __init__.py's _enhanced_enable_xr_mouse_modes for all display
+    types -- via the public hook where available, otherwise the monkey-patched
+    private one.  Parameters are passed through from the original display setup
+    function.
     """
     from chimerax.xr3d import _get_xr_screens
     xr_screens = _get_xr_screens()
@@ -206,7 +208,11 @@ class XR3DBackingWindow:
     def _mouse_drag(self, event):
         if event.buttons():
             from Qt.QtCore import Qt
+            # _sel_rect is checked as well as _sel_start: teardown clears the
+            # rect but a drag already in flight still has _sel_start set, and
+            # None.update() would raise inside a Qt event handler.
             if (self._sel_start is not None
+                    and self._sel_rect is not None
                     and event.buttons() & Qt.LeftButton):
                 p = event.position()
                 gx, gy = self._backing_to_render_coordinates(p.x(), p.y())
@@ -324,6 +330,12 @@ class XR3DBackingWindow:
             self._sel_rect = None
             self._widget.deleteLater()
             self._widget = None
+            # This path used to leave chimerax.xr3d._active_window pointing at
+            # this now-dead window.  Every later `xr3d cursor ...` then found a
+            # non-None window whose _cursor was None and silently did nothing,
+            # instead of reporting "No active XR3D session".  Tear the
+            # registration down here exactly as _xr_quit() does.
+            self._deregister()
             return 'delete handler'
 
         if not self._enabled:
@@ -476,6 +488,27 @@ class XR3DBackingWindow:
     # Cleanup
     # -------------------------------------------------------------------
 
+    def _deregister(self, remove_vr_handler=True):
+        """Stop being the window that `xr3d` commands talk to.
+
+        Shared by the two teardown paths -- `vr stopped`, and the session-close
+        path in _check_for_mouse_hover() -- so neither can leave a stale
+        reference behind.
+
+        ``remove_vr_handler`` is False when called from _xr_quit(), because
+        that IS the 'vr stopped' handler and returns DEREGISTER; removing it
+        mid-dispatch as well would be a double removal.
+        """
+        import chimerax.xr3d as _mod
+        # Identity check: a newer window may already have taken over.
+        if _mod._active_window is self:
+            _mod._active_window = None
+        if self._vr_stopped_handler is not None:
+            if remove_vr_handler:
+                self._session.triggers.remove_handler(
+                    self._vr_stopped_handler)
+            self._vr_stopped_handler = None
+
     def _xr_quit(self, *args):
         # Remove graphics update handler first to stop hover/cursor updates
         from chimerax.core.triggerset import DEREGISTER
@@ -493,9 +526,8 @@ class XR3DBackingWindow:
         if self._widget is not None:
             self._widget.hide()
 
-        # Clear active window reference
-        import chimerax.xr3d as _mod
-        _mod._active_window = None
+        # Returning DEREGISTER below already unhooks this handler.
+        self._deregister(remove_vr_handler=False)
 
         def _deferred_cleanup(*args):
             if self._cursor is not None:
