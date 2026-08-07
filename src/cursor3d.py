@@ -216,8 +216,11 @@ def pointer_view_rotation(R):
 # Cursor3D
 # ---------------------------------------------------------------------------
 
-_DEFAULT_STYLE = 'sphere'
-_DEFAULT_RADIUS = 0.4
+# Shipped defaults live in settings.py, which is the single source of truth for
+# them (they are also the AUTO_SAVE defaults, and what `xr3d cursor default`
+# restores).  Aliased here so the rest of this module reads unchanged.
+from .settings import DEFAULT_STYLE as _DEFAULT_STYLE
+from .settings import DEFAULT_SIZE as _DEFAULT_RADIUS
 # Default gradient: bright warm yellow center → deep orange edge
 _DEFAULT_CENTER = np.array([255, 230, 100, 255], dtype=np.float32)
 _DEFAULT_EDGE = np.array([210, 80, 0, 255], dtype=np.float32)
@@ -230,20 +233,32 @@ class Cursor3D:
     the mouse.  Use ``xr3d cursor <style>`` to change style.
     """
 
-    def __init__(self, session, style=_DEFAULT_STYLE, radius=_DEFAULT_RADIUS):
+    def __init__(self, session, style=None, radius=None):
+        """Build the cursor from the user's saved preferences.
+
+        ``style``/``radius`` override the saved values when given; passing
+        nothing -- which is what the backing window does -- restores whatever
+        the user last chose.  Without this, every ``xr on`` silently discarded
+        their preferences and they had to be re-typed each session.
+        """
+        from .settings import get_settings, saved_color, saved_style
+        st = get_settings(session)
+
         self._session = session
-        self._radius = radius
-        self._style = style
-        self._custom_color = None  # None = use default gradient
+        self._radius = radius if radius is not None else st.cursor_size
+        self._style = style if style is not None else saved_style(session)
+        self._custom_color = saved_color(session)  # None = default gradient
         self._last_pos = None
         self._last_pick_pos = None
         from chimerax.core.models import Surface
         self._model = m = Surface('3D Cursor', session)
         m.color = (255, 150, 0, 255)
         m.pickable = False
-        m.casts_shadows = False
+        m.casts_shadows = st.cursor_shadows
         m.display = False
-        self._apply_style(style)
+        # _apply_style() builds the gradient from _custom_color, so that must
+        # already be set above.
+        self._apply_style(self._style)
         session.models.add([m])
 
     @property
@@ -268,13 +283,25 @@ class Cursor3D:
     def set_color(self, color):
         """Set custom color with auto-contrast gradient.
         Preserves default alpha. color is a ChimeraX Color."""
-        rgba = color.uint8x4()
+        self.set_color_rgba(color.uint8x4())
+
+    def set_color_rgba(self, rgba):
+        """Set custom color from a raw [r, g, b, a] sequence.
+
+        Split out from set_color() so a saved preference -- stored as a plain
+        list, not a ChimeraX Color -- can be restored without reconstructing a
+        Color object.  Pass None to fall back to the default orange gradient.
+        """
         self._custom_color = rgba
         self._base_vc = self._make_gradient(self._base_va)
         self._model.vertex_colors = self._base_vc
 
     def set_shadows(self, enabled):
-        """Toggle cursor shadow casting (off by default for performance)."""
+        """Toggle cursor shadow casting on this cursor.
+
+        Does not persist -- the caller (`xr3d cursor shadows`) writes the
+        preference.  Shipped default is off, for performance.
+        """
         if self._model is not None:
             self._model.casts_shadows = enabled
             # casts_shadows is not in Drawing._effects_shader, so changing
@@ -282,12 +309,31 @@ class Cursor3D:
             self._model.redraw_needed(shape_changed=True)
 
     def reset_defaults(self):
-        """Reset style, size, and color to defaults."""
-        self._radius = _DEFAULT_RADIUS
-        self._style = _DEFAULT_STYLE
-        self._custom_color = None
+        """Reset style, size, colour and shadows to the SHIPPED defaults, and
+        forget the saved preferences.
+
+        Now that all four persist, "reset to defaults" has to clear the stored
+        values too -- otherwise the next ``xr on`` would restore exactly what
+        the user just asked to discard, and the command would look broken.
+        """
+        from .settings import (get_settings, DEFAULT_STYLE, DEFAULT_SIZE,
+                               DEFAULT_COLOR, DEFAULT_SHADOWS)
+        st = get_settings(self._session)
+        st.cursor_style = DEFAULT_STYLE
+        st.cursor_size = DEFAULT_SIZE
+        st.cursor_color = DEFAULT_COLOR
+        st.cursor_shadows = DEFAULT_SHADOWS
+
+        self._radius = DEFAULT_SIZE
+        self._style = DEFAULT_STYLE
+        self._custom_color = DEFAULT_COLOR
         if self._model is not None:
-            self._model.casts_shadows = False
+            self._model.casts_shadows = DEFAULT_SHADOWS
+            # casts_shadows is not in Drawing._effects_shader, so the shadow
+            # map is not rebuilt on its own.  _apply_style() below happens to
+            # force one via set_geometry(), but rely on that and this breaks
+            # silently the day _apply_style short-circuits.
+            self._model.redraw_needed(shape_changed=True)
         self._apply_style(self._style)
 
     def _apply_style(self, style):
