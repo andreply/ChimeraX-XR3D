@@ -29,6 +29,11 @@ DEFAULT_SIZE = 0.4
 DEFAULT_COLOR = None      # None = the built-in auto-contrast orange gradient
 DEFAULT_SHADOWS = False   # off: shadow-map rebuilds cost frames on slower GPUs
 
+#: Label defaults live in labels3d, next to the code that explains them.
+from .labels3d import (DEFAULT_DEPTH, DEFAULT_LIFT, DEFAULT_PLATE,
+                       DEFAULT_PATCH_OFFSET, DEFAULT_MIN_AREA,
+                       DEFAULT_MAX_TRAVEL)
+
 
 class _XR3DSettings(Settings):
     AUTO_SAVE = {
@@ -39,6 +44,12 @@ class _XR3DSettings(Settings):
         # where a Color object would need a custom Value() converter.
         'cursor_color': DEFAULT_COLOR,
         'cursor_shadows': DEFAULT_SHADOWS,
+        'label_depth': DEFAULT_DEPTH,
+        'label_lift': DEFAULT_LIFT,
+        'label_plate': DEFAULT_PLATE,
+        'label_patch_offset': DEFAULT_PATCH_OFFSET,
+        'label_min_area': DEFAULT_MIN_AREA,
+        'label_max_travel': DEFAULT_MAX_TRAVEL,
     }
 
 

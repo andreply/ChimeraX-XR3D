@@ -37,7 +37,7 @@ _active_window = None
 
 def _register_commands(session):
     from chimerax.core.commands import (register, CmdDesc, EnumOf,
-                                        FloatArg, ColorArg, BoolArg)
+                                        FloatArg, ColorArg, BoolArg, IntArg)
     from .cursor3d import CURSOR_STYLES
 
     style_arg = EnumOf((*CURSOR_STYLES, 'default'))
@@ -65,6 +65,69 @@ def _register_commands(session):
         synopsis='Enable or disable 3D cursor shadow casting (saved)')
     register('xr3d shadows', shadows_desc, _cmd_shadows,
              logger=session.logger)
+
+    # Like shadows, these are saved preferences rather than properties of a
+    # live object, so they are settable with no XR session running.
+    labels_desc = CmdDesc(
+        keyword=[('depth', BoolArg),
+                 ('lift', FloatArg),
+                 ('plate', IntArg),
+                 ('patch_offset', FloatArg),
+                 ('min_area', FloatArg),
+                 ('max_travel', FloatArg)],
+        synopsis='Depth-tested 3D labels on XR displays (saved)')
+    register('xr3d labels', labels_desc, _cmd_labels, logger=session.logger)
+
+
+_LABEL_KEYS = ('depth', 'lift', 'plate', 'patch_offset', 'min_area',
+               'max_travel')
+
+
+def _cmd_labels(session, **kw):
+    """`xr3d labels [depth true|false] [lift N] [plate N] ...` -- all saved.
+
+    With no keywords it reports the current state instead of changing it.
+    See labels3d.py for what each number does and why it has that default.
+
+    Unlike the cursor options this works with no XR session running, because
+    these are preferences: `xr on` picks them up.  It only takes labels over
+    immediately if an XR window exists, since on a flat screen the stock
+    always-in-front behaviour is the better one.
+    """
+    from . import labels3d
+    from .settings import get_settings
+    st = get_settings(session)
+
+    if all(kw.get(k) is None for k in _LABEL_KEYS):
+        session.logger.info('XR3D %s' % labels3d.describe())
+        return
+
+    for key in _LABEL_KEYS:
+        if kw.get(key) is not None:
+            setattr(st, 'label_' + key, kw[key])
+
+    if not st.label_depth:
+        labels3d.disable(session)
+    elif _active_window is not None:
+        labels3d.enable(session, **_label_kwargs(session))
+
+    session.logger.info(
+        'XR3D labels: %s, lift %.2f A, plate %d%%, patch offset %.2f A, '
+        'min patch %.0f A^2, max travel %.1f A (saved)'
+        % ('depth tested' if st.label_depth else 'always in front',
+           st.label_lift, st.label_plate, st.label_patch_offset,
+           st.label_min_area, st.label_max_travel))
+
+
+def _label_kwargs(session):
+    """The saved label numbers, in the form labels3d.enable() takes."""
+    from .settings import get_settings
+    st = get_settings(session)
+    return dict(lift=st.label_lift,
+                plate=st.label_plate,
+                patch_offset=st.label_patch_offset,
+                min_area=st.label_min_area,
+                max_travel=st.label_max_travel)
 
 
 def _cmd_shadows(session, enabled):

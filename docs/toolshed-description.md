@@ -27,6 +27,7 @@ Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatia
 - **Saved preferences** — style, size, color and shadows persist across sessions
 - **3D selection rectangle** for ctrl+drag region selection
 - **Hover labels** for atoms, residues, and bonds
+- **Depth-correct 3D labels** — labels stop drawing through the geometry in front of them
 - **vrto3d view fitting** for Samsung Odyssey 3D
 
 ### Commands
@@ -37,6 +38,19 @@ Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatia
 - `xr3d cursor color red` — set a custom color
 - `xr3d shadows true` — enable cursor shadow casting (off by default)
 - `xr3d cursor default` — reset everything to defaults and forget saved values
+- `xr3d labels` — report the current label settings
+- `xr3d labels depth false` — leave labels alone, as stock ChimeraX draws them
+- `xr3d labels plate 30 lift 2` — adjust the label backplate and lift
+
+### Depth-correct labels
+
+ChimeraX draws 3D labels on top of everything, with depth testing off. On a flat screen that is a readability win, since a label can never be hidden. In stereo it is the opposite: the label keeps the parallax of its anchor point, so your eyes converge on a position inside the molecule while the label is painted over what is in front of it. The two depth cues disagree, and it is tiring within seconds.
+
+While an XR session is running, labels become ordinary objects in the scene: depth tested, hidden when something is in front of them, and lifted slightly toward you so a label is not eaten by the side chain it names. They also get a dark backplate, because once a label can be occluded, white text over a white ribbon is hard to read.
+
+Molecular surfaces get special treatment, because a surface stands several Ångström outside the residue it covers and would bury every label. When an **opaque** surface is shown, each label moves out onto its own surface patch instead, so it names the patch you are looking at. Labels with nowhere sensible to go are suppressed rather than misplaced: patches too small to name, residues in grooves overhung by their neighbours, buried residues, and distance labels, which belong to no residue. When the surface is **transparent** the labels stay where they are and shine through it, exactly as the cartoon and sticks do.
+
+Everything is restored when the XR session ends, so your flat-screen labels are untouched. All values are saved, and `xr3d labels` works with no XR session running.
 
 Commands, keywords and booleans can be truncated once unambiguous, so `xr3d sh on` works.
 

@@ -128,6 +128,15 @@ class XR3DBackingWindow:
         w.setMouseTracking(True)
         self._cursor = Cursor3D(session)
 
+        # Stop 3D labels drawing through the geometry in front of them, which
+        # is comfortable on a flat panel and painful in stereo.  Undone in
+        # _deregister().  See labels3d.py.
+        from . import labels3d
+        from chimerax.xr3d import _label_kwargs
+        from .settings import get_settings
+        if get_settings(session).label_depth:
+            labels3d.enable(session, **_label_kwargs(session))
+
         self._register_mouse_handlers()
 
         # Forward all key events to ChimeraX
@@ -519,8 +528,13 @@ class XR3DBackingWindow:
                         a.display = True
                         self._hover_shown_atoms.append(a)
             from chimerax.label.label3d import label
+            # on_top=False for the same reason as every other label in an XR
+            # session: drawn over the geometry it sits behind, it fights the
+            # stereo depth cue.  labels3d then places it and manages its plate
+            # opacity along with the rest, including the case where a surface
+            # would otherwise bury it.  See labels3d.py.
             label(self._session, obj, label_type,
-                  text=text, bg_color=(0, 0, 0, 255))
+                  text=text, bg_color=(0, 0, 0, 255), on_top=False)
             self._hover_label_object = obj, label_type
         else:
             # No atom available — fall back to 2D popup
@@ -575,6 +589,10 @@ class XR3DBackingWindow:
         # Identity check: a newer window may already have taken over.
         if _mod._active_window is self:
             _mod._active_window = None
+            # Give labels back to ChimeraX.  Only when no newer window has
+            # taken over, since that one still wants them depth tested.
+            from . import labels3d
+            labels3d.disable(self._session)
         if self._vr_stopped_handler is not None:
             if remove_vr_handler:
                 self._session.triggers.remove_handler(

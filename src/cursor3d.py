@@ -294,7 +294,27 @@ class Cursor3D:
         """
         self._custom_color = rgba
         self._base_vc = self._make_gradient(self._base_va)
-        self._model.vertex_colors = self._base_vc
+        self._paint()
+
+    def _paint(self):
+        """Push the cursor's own colours onto the model, as a copy.
+
+        The copy is the whole point.  ``Surface.vertex_colors`` stores the array
+        by reference (verified: ``model.vertex_colors is self._base_vc``), so a
+        scene-wide command such as ``transparency 70`` -- which has no reason to
+        know the 3D cursor exists -- wrote straight through into ``_base_vc`` and
+        corrupted the cursor's idea of its own colour.  Measured on a live
+        session: alpha went 255 -> 51 -> 128 over successive commands, and
+        because _place_geometry() reasserts _base_vc every frame, it faithfully
+        restored the corruption.  The cursor could never recover, and the user
+        saw a permanently see-through cursor.
+
+        Assigning a copy keeps _base_vc private, which makes the per-frame
+        reassert a repair instead of a re-application: the cursor now heals from
+        any external colour or transparency change within one frame.
+        """
+        if self._base_vc is not None and self._model is not None:
+            self._model.vertex_colors = self._base_vc.copy()
 
     def set_shadows(self, enabled):
         """Toggle cursor shadow casting on this cursor.
@@ -360,7 +380,7 @@ class Cursor3D:
             np.array(va, dtype=np.float32),
             np.array(na, dtype=np.float32),
             self._base_ta)
-        self._model.vertex_colors = self._base_vc
+        self._paint()
 
     def _make_gradient(self, va):
         """Build gradient colors for current vertices.
@@ -497,8 +517,7 @@ class Cursor3D:
             va = (R @ self._base_va.T).T.astype(np.float32)
             na = (R @ self._base_na.T).T.astype(np.float32)
         self._model.set_geometry(va, na, self._base_ta)
-        if self._base_vc is not None:
-            self._model.vertex_colors = self._base_vc
+        self._paint()   # also repairs external colour/transparency changes
         self._model.position = Place(origin=pos)
 
     @property
@@ -521,11 +540,17 @@ class SelectionRect3D:
     Renders a semi-transparent quad at a given depth plane
     so the ctrl-drag selection area is visible in stereo."""
 
+    #: Deliberately semi-transparent: it is a selection overlay, not an object.
+    #: Kept here so it can be reasserted, because a scene-wide `transparency`
+    #: or `color` command would otherwise redefine it -- the same way it used to
+    #: corrupt the 3D cursor.  See Cursor3D._paint().
+    COLOR = (100, 180, 255, 60)
+
     def __init__(self, session):
         self._session = session
         from chimerax.core.models import Surface
         self._model = m = Surface('3D Selection', session)
-        m.color = (100, 180, 255, 60)
+        m.color = self.COLOR
         m.pickable = False
         m.display = False
         m.use_lighting = False
@@ -561,6 +586,8 @@ class SelectionRect3D:
         from chimerax.geometry import identity
         self._model.position = identity()
         self._model.set_geometry(verts, norms, tris)
+        if tuple(self._model.color) != self.COLOR:
+            self._model.color = self.COLOR   # repair an external colour change
         self._model.display = True
 
     def hide(self):
