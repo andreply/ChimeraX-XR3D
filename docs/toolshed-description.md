@@ -24,10 +24,10 @@ Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatia
 
 - **3D cursor** at correct stereo depth (5 styles: sphere, crosshair, diamond, arrow, cone)
 - **Customizable** size, color with auto-contrast gradient
-- **Saved preferences** — style, size, color and shadows persist across sessions
+- **Depth-correct 3D labels** — labels stop drawing through the geometry in front of them
+- **Saved preferences** — cursor and label settings persist across sessions
 - **3D selection rectangle** for ctrl+drag region selection
 - **Hover labels** for atoms, residues, and bonds
-- **Depth-correct 3D labels** — labels stop drawing through the geometry in front of them
 - **vrto3d view fitting** for Samsung Odyssey 3D
 
 ### Commands
@@ -39,31 +39,32 @@ Adds depth-correct 3D interaction to all OpenXR autostereo displays (Sony Spatia
 - `xr3d shadows true` — enable cursor shadow casting (off by default)
 - `xr3d cursor default` — reset everything to defaults and forget saved values
 - `xr3d labels` — report the current label settings
-- `xr3d labels depth false` — leave labels alone, as stock ChimeraX draws them
-- `xr3d labels plate 30 lift 2` — adjust the label backplate and lift
-
-### Depth-correct labels
-
-ChimeraX draws 3D labels on top of everything, with depth testing off. On a flat screen that is a readability win, since a label can never be hidden. In stereo it is the opposite: the label keeps the parallax of its anchor point, so your eyes converge on a position inside the molecule while the label is painted over what is in front of it. The two depth cues disagree, and it is tiring within seconds.
-
-While an XR session is running, labels become ordinary objects in the scene: depth tested, hidden when something is in front of them, and lifted slightly toward you so a label is not eaten by the side chain it names. They also get a dark backplate, because once a label can be occluded, white text over a white ribbon is hard to read.
-
-Molecular surfaces get special treatment, because a surface stands several Ångström outside the residue it covers and would bury every label. When an **opaque** surface is shown, each label moves out onto its own surface patch instead, so it names the patch you are looking at. Labels with nowhere sensible to go are suppressed rather than misplaced: patches too small to name, residues in grooves overhung by their neighbours, buried residues, and distance labels, which belong to no residue. When the surface is **transparent** the labels stay where they are and shine through it, exactly as the cartoon and sticks do.
-
-Everything is restored when the XR session ends, so your flat-screen labels are untouched. All values are saved, and `xr3d labels` works with no XR session running.
+- `xr3d labels depth false` — leave labels exactly as ChimeraX draws them
+- `xr3d labels lift 2 plate 30` — tune label placement (also: `patchOffset`, `minArea`, `maxTravel`)
 
 Commands, keywords and booleans can be truncated once unambiguous, so `xr3d sh on` works.
 
 `xr3d cursor shadows true` is still accepted, for compatibility with existing scripts.
 
+### Depth-correct labels
+
+ChimeraX draws 3D labels on top of everything, with depth testing off. On a flat screen that is a readability win. In stereo it fights the depth cue: your eyes converge on the label's anchor inside the molecule while the label is painted over whatever is in front of it, and it is tiring within seconds.
+
+Since v0.12, while XR is running, labels become ordinary objects in the scene — depth tested, lifted slightly toward you so a label is not eaten by the side chain it names, and given a dark backplate to stay readable.
+
+Molecular surfaces are handled too, since a surface stands several Ångström outside the residue it covers and would otherwise bury every label:
+
+- over an **opaque** surface, each label moves out onto its own surface patch, and labels with nowhere sensible to go are hidden rather than misplaced
+- over a **transparent** surface, labels stay where they are and shine through it, exactly as the cartoon and sticks do
+
+Everything is restored on `xr off`, so your flat-screen labels are untouched. Tuning is optional: `lift`, `plate`, `patchOffset`, `minArea` and `maxTravel` all ship with working defaults.
+
 ### Your cursor is remembered
 
 Since v0.10, style, size, color and shadows are **saved per user**. Set the cursor you like once and every later `xr on` restores it — no startup script needed.
 
-```
-xr3d cursor cone size 0.6 color cornflowerblue
-xr3d shadows true
-```
+    xr3d cursor cone size 0.6 color cornflowerblue
+    xr3d shadows true
 
 `xr3d cursor default` resets to the shipped defaults and clears the saved values.
 
