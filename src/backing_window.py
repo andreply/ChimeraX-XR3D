@@ -84,6 +84,36 @@ class XR3DBackingWindow:
         w.raise_()
         w.activateWindow()
 
+        # Correct the oversize (see _fit_to_xr_screen) IMMEDIATELY.  This must
+        # not be deferred.  Qt only exposes the discrepancy for a brief moment
+        # after showFullScreen(); shortly afterwards it reports the window as
+        # already matching the screen rect while Windows still renders it
+        # oversized, and from then on there is nothing for us to detect.  A
+        # 4 s delay was tried and turned the correction into a permanent no-op.
+        self._fit_to_xr_screen(w)
+
+        # Qt applies its fullscreen geometry asynchronously as well, so re-run
+        # once the event loop has settled.
+        from Qt.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self._fit_to_xr_screen(w))
+
+        # ...and it re-asserts that geometry again later, on window activation.
+        # Without this the window silently reverts mid-session and takes the
+        # mouse mapping with it.  _fit_to_xr_screen is a no-op once the
+        # geometry matches, so this settles rather than looping.
+        def _on_resize(event, _w=w):
+            self._fit_to_xr_screen(_w)
+
+        w.resizeEvent = _on_resize
+
+        # KNOWN TRADE-OFF: setGeometry() clears the fullscreen window state,
+        # and the Odyssey 3D Hub only offers 3D mode when it detects a
+        # fullscreen window.  Correcting immediately can therefore beat the Hub
+        # to it, reproducible by running `xr on` the instant ChimeraX starts:
+        # no 3D prompt, flat panel.  Let ChimeraX finish loading before `xr on`
+        # and the Hub wins the race, which is what you want.  Deferring our
+        # correction instead is NOT a fix; see above.
+
         # Hover label state
         self._hover_pos = None
         self._hover_time = 0
@@ -116,6 +146,48 @@ class XR3DBackingWindow:
         # Register as active window for xr3d commands
         import chimerax.xr3d as _mod
         _mod._active_window = self
+
+    def _fit_to_xr_screen(self, w):
+        """Trim the backing window to exactly one display.
+
+        ChimeraX core sizes this window from the XR screen geometry and then
+        calls showFullScreen(), with no reference to the display scale factor
+        (chimerax/vive/xr_screens.py).  Those are different units on a
+        fractionally scaled display, so on the Odyssey at 150% the window came
+        out 5760x3240 for a 3840x2160 panel.  Transparent and always on top,
+        that 1920 px overhang silently swallowed the neighbouring monitor's
+        mouse events: drags on the desktop beside the ChimeraX window rotated
+        the molecule, and the pointer could never leave the 3D screen because
+        it never actually left this window.
+
+        Qt's own QScreen rect is in the units setGeometry expects, so applying
+        it trims the window whatever the scale factor is, and is a no-op at
+        100% where core's arithmetic happens to be right.
+
+        Capping with setMaximumSize before showing was tried instead, to keep
+        the window fullscreen: Qt then reported the right logical size while
+        Windows still reported 5760x3240, so it fixed nothing.  A clean fix is
+        not available from a bundle, because the underlying mismatch is the
+        process DPI awareness mode, which is fixed at startup long before any
+        bundle loads.  This is a workaround; the real fix belongs upstream.
+
+        Called from a timer, by which point teardown may have deleted the
+        widget, and touching a deleted QWidget raises RuntimeError.
+        """
+        if w is None or self._widget is None:
+            return
+        try:
+            handle = w.windowHandle()
+            if handle is None:
+                return      # not yet native; nothing to correct against
+            qscreen = handle.screen()
+            if qscreen is None:
+                return
+            target = qscreen.geometry()
+            if w.geometry() != target:
+                w.setGeometry(target)
+        except RuntimeError:
+            pass            # widget already destroyed
 
     def _make_transparent_in_front(self, w):
         """Make the backing window transparent and always-on-top.
